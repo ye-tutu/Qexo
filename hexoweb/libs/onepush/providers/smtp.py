@@ -37,7 +37,7 @@ class Smtp(Provider):
         from email.mime.text import MIMEText
         from email.utils import formataddr, parseaddr
         self.message = MIMEText(content, 'html', 'utf-8')
-        self.message['From'] = formataddr(parseaddr(sender_name + " <%s>" % self.sender))
+        self.message['From'] = formataddr(parseaddr(sender_name + f" <{self.sender}>"))
         self.message['To'] = formataddr(parseaddr(receiver))
         self.message['Subject'] = title
         return self.message

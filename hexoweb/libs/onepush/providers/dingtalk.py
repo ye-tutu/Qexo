@@ -27,7 +27,7 @@ class DingTalk(Provider):
 
         timestamp = str(round(time.time() * 1000))
         secret_enc = secret.encode('utf-8')
-        string_to_sign = '{}\n{}'.format(timestamp, secret)
+        string_to_sign = f'{timestamp}\n{secret}'
         string_to_sign_enc = string_to_sign.encode('utf-8')
         hmac_code = hmac.new(
             secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
@@ -41,8 +41,7 @@ class DingTalk(Provider):
 
         if secret:
             timestamp, sign = self.encrypt(secret)
-            self.url = self.url + '&timestamp={}&sign={}'.format(
-                timestamp, sign)
+            self.url = (self.url + f'&timestamp={timestamp}&sign={sign}')
         return self.url
 
     def _prepare_data(self,

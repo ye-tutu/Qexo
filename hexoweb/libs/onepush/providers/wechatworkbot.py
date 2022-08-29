@@ -29,10 +29,7 @@ class WechatWorkBot(Provider):
                       markdown: str = "false",
                       **kwargs):
         message = self.process_message(title, content)
-        msgtype = 'text'
-        if markdown == "true":
-            msgtype = 'markdown'
-
+        msgtype = 'markdown' if markdown == "true" else 'text'
         self.data = {'msgtype': msgtype, msgtype: {'content': message}}
         return self.data
 

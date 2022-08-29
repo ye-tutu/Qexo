@@ -39,11 +39,11 @@ def save_post(request):
         try:
             # 删除草稿
             try:
-                Provider().delete("source/_drafts/" + file_name)
+                Provider().delete(f"source/_drafts/{file_name}")
             except Exception:
                 pass
             # 创建/更新文章
-            Provider().save("source/_posts/" + file_name, content)
+            Provider().save(f"source/_posts/{file_name}", content)
             context = {"msg": "OK!", "status": True}
         except Exception as error:
             print(repr(error))
@@ -62,7 +62,7 @@ def save_draft(request):
         content = request.POST.get('content')
         try:
             # 创建/更新草稿
-            Provider().save("source/_drafts/" + file_name, content)
+            Provider().save(f"source/_drafts/{file_name}", content)
             context = {"msg": "OK!", "status": True}
         except Exception as error:
             print(repr(error))
@@ -99,20 +99,20 @@ def create_webhook_config(request):
     context = dict(msg="Error!", status=False)
     if request.method == "POST":
         try:
-            if SettingModel.objects.filter(name="WEBHOOK_APIKEY"):
-                config = {
-                    "content_type": "json",
-                    "url": request.POST.get("uri") + "?token=" + SettingModel.objects.get(
-                        name="WEBHOOK_APIKEY").content
-                }
-            else:
-                save_setting("WEBHOOK_APIKEY", ''.join(
-                    random.choice("qwertyuiopasdfghjklzxcvbnm1234567890") for x in range(12)))
-                config = {
-                    "content_type": "json",
-                    "url": request.POST.get("uri") + "?token=" + SettingModel.objects.get(
-                        name="WEBHOOK_APIKEY").content
-                }
+            if not SettingModel.objects.filter(name="WEBHOOK_APIKEY"):
+                save_setting(
+                    "WEBHOOK_APIKEY",
+                    ''.join(
+                        random.choice("qwertyuiopasdfghjklzxcvbnm1234567890")
+                        for _ in range(12)
+                    ),
+                )
+
+            config = {
+                "content_type": "json",
+                "url": request.POST.get("uri") + "?token=" + SettingModel.objects.get(
+                    name="WEBHOOK_APIKEY").content
+            }
             Provider().delete_hooks()
             Provider().create_hook(config)
             context = {"msg": "设置成功！", "status": True}
@@ -179,13 +179,20 @@ def get_images(request):
     if not check_if_api_auth(request):
         return JsonResponse(safe=False, data={"msg": "鉴权错误！", "status": False})
     try:
-        posts = list()
         images = ImageModel.objects.all()
-        for i in images:
-            posts.append({"name": i.name, "size": int(i.size), "url": i.url,
-                          "date": strftime("%Y-%m-%d %H:%M:%S",
-                                           localtime(float(i.date))),
-                          "time": i.date})
+        posts = [
+            {
+                "name": i.name,
+                "size": int(i.size),
+                "url": i.url,
+                "date": strftime(
+                    "%Y-%m-%d %H:%M:%S", localtime(float(i.date))
+                ),
+                "time": i.date,
+            }
+            for i in images
+        ]
+
         context = {"status": True, "images": posts}
     except Exception as error:
         context = {"status": False, "error": repr(error)}
@@ -199,7 +206,7 @@ def auto_fix(request):
         return JsonResponse(safe=False, data={"msg": "鉴权错误！", "status": False})
     try:
         counter = fix_all()
-        msg = "尝试自动修复了 {} 个字段，请在稍后检查和修改配置".format(counter)
+        msg = f"尝试自动修复了 {counter} 个字段，请在稍后检查和修改配置"
         context = {"msg": msg, "status": True}
     except Exception as e:
         print(repr(e))
@@ -212,12 +219,18 @@ def auto_fix(request):
 def friends(request):
     try:
         all_friends = FriendModel.objects.all()
-        data = list()
-        for i in all_friends:
-            if i.status:
-                data.append({"name": i.name, "url": i.url, "image": i.imageUrl,
-                             "description": i.description,
-                             "time": i.time})
+        data = [
+            {
+                "name": i.name,
+                "url": i.url,
+                "image": i.imageUrl,
+                "description": i.description,
+                "time": i.time,
+            }
+            for i in all_friends
+            if i.status
+        ]
+
         data.sort(key=lambda x: x["time"])
         context = {"data": data, "status": True}
     except Exception as e:
@@ -293,17 +306,20 @@ def ask_friend(request):
         token = get_setting("RECAPTCHA_TOKEN")
         typ = get_setting("FRIEND_RECAPTCHA")
         if typ == "v3":
-            if verify:
-                captcha = requests.get(
-                    "https://recaptcha.net/recaptcha/api/siteverify?secret=" + token + "&response=" + verify).json()
-                if captcha["score"] <= 0.5:
-                    return {"msg": "人机验证失败！", "status": False}
-            else:
+            if not verify:
+                return {"msg": "人机验证失败！", "status": False}
+            captcha = requests.get(
+                f"https://recaptcha.net/recaptcha/api/siteverify?secret={token}&response={verify}"
+            ).json()
+
+            if captcha["score"] <= 0.5:
                 return {"msg": "人机验证失败！", "status": False}
         if typ == "v2":
             if verify:
                 captcha = requests.get(
-                    "https://recaptcha.net/recaptcha/api/siteverify?secret=" + token + "&response=" + verify).json()
+                    f"https://recaptcha.net/recaptcha/api/siteverify?secret={token}&response={verify}"
+                ).json()
+
                 if not captcha["success"]:
                     return {"msg": "人机验证失败！", "status": False}
             else:
@@ -317,9 +333,12 @@ def ask_friend(request):
         friend.time = str(float(time()))
         friend.status = False
         friend.save()
-        CreateNotification("友链申请 " + friend.name,
-                           "站点名: {}\n链接: {}\n图片: {}\n简介: {}\n".format(friend.name, friend.url, friend.imageUrl,
-                                                                               friend.description), time())
+        CreateNotification(
+            f"友链申请 {friend.name}",
+            f"站点名: {friend.name}\n链接: {friend.url}\n图片: {friend.imageUrl}\n简介: {friend.description}\n",
+            time(),
+        )
+
         context = {"msg": "申请成功！", "time": friend.time, "status": True}
     except Exception as error:
         print(repr(error))
@@ -333,9 +352,11 @@ def get_custom(request):
     try:
         context = {
             "data": CustomModel.objects.get(
-                name=request.GET.get("key") if request.GET.get("key") else request.POST.get("key")).content,
-            "status": True
+                name=request.GET.get("key") or request.POST.get("key")
+            ).content,
+            "status": True,
         }
+
     except Exception as error:
         print(repr(error))
         context = {"msg": repr(error), "status": False}
@@ -427,9 +448,9 @@ def statistic(request):
                 allow = True
                 break
         if not (allow and (t and get_setting("STATISTIC_ALLOW") == "是")):
-            print("域名未验证: " + url)
+            print(f"域名未验证: {url}")
             return HttpResponseForbidden()
-        if url[:7] == "http://":
+        if url.startswith("http://"):
             url = url[7:]
         elif url[:8] == "https://":
             url = url[8:]
@@ -438,27 +459,25 @@ def statistic(request):
         if pv.count() == 1:
             pv = StatisticPV.objects.get(url=url)
             pv.number += 1
-            pv.save()
         else:
             for i in pv:
                 i.delete()
             pv = StatisticPV()
             pv.url = url
             pv.number = 1
-            pv.save()
+        pv.save()
         site_pv = StatisticPV.objects.filter(url=domain)
         if site_pv.count() == 1:
             site_pv = site_pv.first()
             site_pv.number += 1
-            site_pv.save()
         else:
             for i in site_pv:
                 i.delete()
             site_pv = StatisticPV()
             site_pv.url = domain
             site_pv.number = 1
-            site_pv.save()
-        print("登记页面PV: {} => {}".format(url, pv.number))
+        site_pv.save()
+        print(f"登记页面PV: {url} => {pv.number}")
         ip = request.META['HTTP_X_FORWARDED_FOR'] if 'HTTP_X_FORWARDED_FOR' in request.META.keys() else request.META[
             'REMOTE_ADDR']
         uv = StatisticUV.objects.filter(ip=ip)
@@ -469,7 +488,7 @@ def statistic(request):
         uv = StatisticUV()
         uv.ip = ip
         uv.save()
-        print("登记用户UV: " + ip)
+        print(f"登记用户UV: {ip}")
         return JsonResponse(safe=False, data={"site_pv": site_pv.number, "page_pv": pv.number, "site_uv": StatisticUV.objects.all().count(),
                                               "status": True})
     except Exception as e:
@@ -486,11 +505,11 @@ def waline(request):
         data = json.loads(request.body.decode())
         if data.get("type") == "new_comment":
             comment = data["data"]["comment"]
-            msg = "评论者: {}\n邮箱: {}\n".format(comment["nick"], comment["mail"])
+            msg = f'评论者: {comment["nick"]}\n邮箱: {comment["mail"]}\n'
             if comment.get("link"):
-                msg += "网址: {}\n".format(comment["link"])
-            msg += "内容: {}\nIP: {}\n时间: {}\n地址: {}\n状态: {}\nUA: {}".format(comment["comment"], comment["ip"], comment["insertedAt"],
-                                                                                   comment["url"], comment["status"], comment["ua"])
+                msg += f'网址: {comment["link"]}\n'
+            msg += f'内容: {comment["comment"]}\nIP: {comment["ip"]}\n时间: {comment["insertedAt"]}\n地址: {comment["url"]}\n状态: {comment["status"]}\nUA: {comment["ua"]}'
+
             CreateNotification("Waline评论通知", msg, time())
     except Exception as error:
         print(repr(error))
@@ -533,8 +552,17 @@ def get_talks(request):
         talks = []
         for i in all_talks:
             t = json.loads(i.like)
-            talks.append({"id": i.id.hex, "content": i.content, "time": i.time, "tags": json.loads(i.tags), "like": len(t),
-                          "liked": True if ip in t else False})
+            talks.append(
+                {
+                    "id": i.id.hex,
+                    "content": i.content,
+                    "time": i.time,
+                    "tags": json.loads(i.tags),
+                    "like": len(t),
+                    "liked": ip in t,
+                }
+            )
+
         context = {"msg": "获取成功！", "status": True, "count": count, "data": talks}
     except Exception as error:
         print(repr(error))
@@ -555,13 +583,13 @@ def like_talk(request):
             t.remove(ip)
             talk.like = json.dumps(t)
             talk.save()
-            print(ip + "取消点赞: " + talk_id)
+            print(f"{ip}取消点赞: {talk_id}")
             context = {"msg": "取消成功！", "action": False, "status": True}
         else:
             t.append(ip)
             talk.like = json.dumps(t)
             talk.save()
-            print(ip + "成功点赞: " + talk_id)
+            print(f"{ip}成功点赞: {talk_id}")
             context = {"msg": "点赞成功！", "action": True, "status": True}
     except Exception as error:
         print(repr(error))

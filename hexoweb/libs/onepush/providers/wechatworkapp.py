@@ -34,10 +34,7 @@ class WechatWorkApp(Provider):
                       markdown: str = "false",
                       **kwargs):
         message = self.process_message(title, content)
-        msgtype = 'text'
-        if markdown == "true":
-            msgtype = 'markdown'
-
+        msgtype = 'markdown' if markdown == "true" else 'text'
         self.data = {
             'touser': touser,
             'msgtype': msgtype,

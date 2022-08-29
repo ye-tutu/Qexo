@@ -30,10 +30,12 @@ def login_view(request):
         print("未检测到初始化配置, 转跳到初始化页面")
         return redirect("/init/")
     if request.user.is_authenticated:
-        if not request.GET.get("next"):
-            return redirect("/")
-        else:
-            return redirect(unquote(request.GET.get("next")))
+        return (
+            redirect(unquote(request.GET.get("next")))
+            if request.GET.get("next")
+            else redirect("/")
+        )
+
     context = get_custom_config()
     site_token = get_setting("LOGIN_RECAPTCHA_SITE_TOKEN")
     server_token = get_setting("LOGIN_RECAPTCHA_SERVER_TOKEN")
@@ -57,13 +59,13 @@ def update_view(request):
             if setting == "PROVIDER":
                 update_provider()
         delete_all_caches()
-    already = list()
+    already = []
     settings = SettingModel.objects.all()
     for query in settings:
         if query.name not in already:
             already.append(query.name)
     context = get_custom_config()
-    context["settings"] = list()
+    context["settings"] = []
     context["counter"] = 0
     for setting in ALL_SETTINGS:
         if setting[0] not in already:
@@ -94,8 +96,8 @@ def update_view(request):
 
 def init_view(request):
     msg = None
-    context = dict()
-    context.update(get_custom_config())
+    context = {}
+    context |= get_custom_config()
     step = get_setting("INIT")
     if not step:
         save_setting("INIT", "1")
@@ -113,11 +115,17 @@ def init_view(request):
             try:
                 if apikey:
                     save_setting("WEBHOOK_APIKEY", apikey)
-                else:
-                    if not SettingModel.objects.filter(name="WEBHOOK_APIKEY").count():
-                        save_setting("WEBHOOK_APIKEY", ''.join(
-                            random.choice("qwertyuiopasdfghjklzxcvbnm1234567890") for x in
-                            range(12)))
+                elif not SettingModel.objects.filter(name="WEBHOOK_APIKEY").count():
+                    save_setting(
+                        "WEBHOOK_APIKEY",
+                        ''.join(
+                            random.choice(
+                                "qwertyuiopasdfghjklzxcvbnm1234567890"
+                            )
+                            for _ in range(12)
+                        ),
+                    )
+
                 if repassword != password:
                     msg = "两次密码不一致!"
                     context["username"] = username
@@ -141,7 +149,7 @@ def init_view(request):
                     save_setting("INIT", "3")
                     step = "3"
             except Exception as e:
-                print("初始化用户名密码错误:" + repr(e))
+                print(f"初始化用户名密码错误:{repr(e)}")
                 msg = repr(e)
                 context["username"] = username
                 context["password"] = password
@@ -170,41 +178,23 @@ def init_view(request):
                         if verify["status"] == -1:
                             msg = "远程连接错误!请检查Token"
                         else:
-                            if verify["hexo"]:
-                                msg += "检测到Hexo版本: " + verify["hexo"]
-                            else:
-                                msg += "未检测到Hexo"
+                            msg += "检测到Hexo版本: " + verify["hexo"] if verify["hexo"] else "未检测到Hexo"
                             if verify["indexhtml"]:
                                 msg += "\n检测到index.html, 这可能不是正确的仓库"
-                            if verify["config_hexo"]:
-                                msg += "\n检测到Hexo配置文件"
-                            else:
-                                msg += "\n未检测到Hexo配置"
-                            if verify["theme"]:
-                                msg += "\n检测到主题: " + verify["theme"]
-                            else:
-                                msg += "\n未检测到主题"
+                            msg += "\n检测到Hexo配置文件" if verify["config_hexo"] else "\n未检测到Hexo配置"
+                            msg += "\n检测到主题: " + verify["theme"] if verify["theme"] else "\n未检测到主题"
                             if verify["config_theme"]:
                                 msg += "\n检测到主题配置" + verify["config_theme"]
                             else:
                                 msg += "\n未检测到主题配置"
-                            if verify["theme_dir"]:
-                                msg += "\n检测到主题目录"
-                            else:
-                                msg += "\n未检测到主题目录"
-                            if verify["package"]:
-                                msg += "\n检测到package.json"
-                            else:
-                                msg += "\n未检测到package.json"
-                            if verify["source"]:
-                                msg += "\n检测到source目录 "
-                            else:
-                                msg += "\n未检测到source目录"
+                            msg += "\n检测到主题目录" if verify["theme_dir"] else "\n未检测到主题目录"
+                            msg += "\n检测到package.json" if verify["package"] else "\n未检测到package.json"
+                            msg += "\n检测到source目录 " if verify["source"] else "\n未检测到source目录"
                         msg = msg.replace("\n", "<br>")
                         context["PROVIDER"] = json.dumps(provider)
                         # Get Provider Settings
                         all_provider = all_providers()
-                        context["all_providers"] = dict()
+                        context["all_providers"] = {}
                         for provider in all_provider:
                             params = get_params(provider)
                             context["all_providers"][provider] = params
@@ -216,11 +206,11 @@ def init_view(request):
                     save_setting("INIT", step)
             except Exception as e:
                 msg = repr(e)
-                print("初始化Provider错误:" + repr(e))
-                context["PROVIDER"] = json.dumps(get_setting("PROVIDER") if not provider else provider)
+                print(f"初始化Provider错误:{repr(e)}")
+                context["PROVIDER"] = json.dumps(provider or get_setting("PROVIDER"))
                 # Get Provider Settings
                 all_provider = all_providers()
-                context["all_providers"] = dict()
+                context["all_providers"] = {}
                 for provider in all_provider:
                     params = get_params(provider)
                     context["all_providers"][provider] = params
@@ -234,7 +224,7 @@ def init_view(request):
                 save_setting("INIT", "6")
                 step = "6"
             except Exception as e:
-                print("初始化Vercel配置错误:" + repr(e))
+                print(f"初始化Vercel配置错误:{repr(e)}")
                 context["project_id"] = project_id
                 context["vercel_token"] = vercel_token
                 msg = "校验错误"
@@ -249,7 +239,7 @@ def init_view(request):
             context["PROVIDER"] = get_setting("PROVIDER")
             # Get Provider Settings
             all_provider = all_providers()
-            context["all_providers"] = dict()
+            context["all_providers"] = {}
             for provider in all_provider:
                 params = get_params(provider)
                 context["all_providers"][provider] = params
@@ -276,8 +266,7 @@ def migrate_view(request):
     if request.method == "POST":
         try:
             if request.POST.get("type") == "export":
-                exports = dict()
-                exports["settings"] = export_settings()
+                exports = {"settings": export_settings()}
                 exports["images"] = export_images()
                 exports["friends"] = export_friends()
                 exports["notifications"] = export_notifications()
@@ -341,21 +330,27 @@ def index(request):
         print("检测配置更新失败, 转跳至更新页面")
         return redirect("/update/")
     context = {'segment': 'index'}
-    context.update(get_custom_config())
+    context |= get_custom_config()
     cache = Cache.objects.filter(name="posts")
     if cache.count():
         posts = json.loads(cache.first().content)
     else:
         posts = update_posts_cache()
     _images = ImageModel.objects.all()
-    images = list()
-    for i in _images:
-        images.append({"name": i.name, "size": int(i.size), "url": i.url,
-                       "date": strftime("%Y-%m-%d", localtime(float(i.date)))})
-    context["posts"] = posts[0:5]
+    images = [
+        {
+            "name": i.name,
+            "size": int(i.size),
+            "url": i.url,
+            "date": strftime("%Y-%m-%d", localtime(float(i.date))),
+        }
+        for i in _images
+    ]
+
+    context["posts"] = posts[:5]
     for item in range(len(context["posts"])):
         context["posts"][item]["fullname"] = quote(context["posts"][item]["fullname"])
-    context["images"] = images[::-1][0:5]
+    context["images"] = images[::-1][:5]
     context = dict(context, **get_latest_version())
     context["version"] = QEXO_VERSION
     context["post_number"] = str(len(posts))
