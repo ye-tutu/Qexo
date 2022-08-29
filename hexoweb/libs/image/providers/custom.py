@@ -32,33 +32,48 @@ class Custom(Provider):
 
     def upload(self, file):
         if self.custom_header:
-            if self.custom_body:
-                response = requests.post(self.api, data=json.loads(self.custom_body),
-                                         headers=json.loads(self.custom_header),
-                                         files={self.post_params: [file.name, file.read(),
-                                                                   file.content_type]})
-            else:
-                response = requests.post(self.api, data={}, headers=json.loads(self.custom_header),
-                                         files={self.post_params: [file.name, file.read(),
-                                                                   file.content_type]})
+            response = (
+                requests.post(
+                    self.api,
+                    data=json.loads(self.custom_body),
+                    headers=json.loads(self.custom_header),
+                    files={
+                        self.post_params: [
+                            file.name,
+                            file.read(),
+                            file.content_type,
+                        ]
+                    },
+                )
+                if self.custom_body
+                else requests.post(
+                    self.api,
+                    data={},
+                    headers=json.loads(self.custom_header),
+                    files={
+                        self.post_params: [
+                            file.name,
+                            file.read(),
+                            file.content_type,
+                        ]
+                    },
+                )
+            )
+
+        elif self.custom_body:
+            response = requests.post(self.api, data=json.loads(self.custom_body),
+                                     files={self.post_params: [file.name, file.read(),
+                                                               file.content_type]})
         else:
-            if self.custom_body:
-                response = requests.post(self.api, data=json.loads(self.custom_body),
-                                         files={self.post_params: [file.name, file.read(),
-                                                                   file.content_type]})
-            else:
-                response = requests.post(self.api, data={},
-                                         files={self.post_params: [file.name, file.read(),
-                                                                   file.content_type]})
+            response = requests.post(self.api, data={},
+                                     files={self.post_params: [file.name, file.read(),
+                                                               file.content_type]})
         if self.json_path:
             json_path = self.json_path.split(".")
             response.encoding = "utf8"
             data = response.json()
             for path in json_path:
-                if path.isdigit():  # 处理列表Index
-                    data = [int(path)]
-                else:
-                    data = data[path]
+                data = [int(path)] if path.isdigit() else data[path]
         else:
             data = response.text
         return str(self.custom_url) + data

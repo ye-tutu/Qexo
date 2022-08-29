@@ -50,7 +50,6 @@ try:
     _Provider = update_provider()
 except Exception:
     print("Provider初始化失败, 跳过")
-    pass
 
 
 def Provider():
@@ -123,12 +122,9 @@ def update_caches(name, content, _type="json"):
         caches.delete()
     posts_cache = Cache()
     posts_cache.name = name
-    if _type == "json":
-        posts_cache.content = json.dumps(content)
-    else:
-        posts_cache.content = content
+    posts_cache.content = json.dumps(content) if _type == "json" else content
     posts_cache.save()
-    print("重建{}缓存成功".format(name))
+    print(f"重建{name}缓存成功")
 
 
 def update_posts_cache(s=None):
@@ -142,7 +138,7 @@ def update_posts_cache(s=None):
                     del posts[i]
                     i -= 1
                 i += 1
-            cache_name = "posts." + str(s)
+            cache_name = f"posts.{str(s)}"
             update_caches(cache_name, posts)
             return posts
     else:
@@ -157,10 +153,7 @@ def update_posts_cache(s=None):
                 del posts[i]
                 i -= 1
             i += 1
-    if s:
-        cache_name = "posts." + str(s)
-    else:
-        cache_name = "posts"
+    cache_name = f"posts.{str(s)}" if s else "posts"
     update_caches(cache_name, posts)
     return posts
 
@@ -176,7 +169,7 @@ def update_pages_cache(s=None):
                     del posts[i]
                     i -= 1
                 i += 1
-            cache_name = "pages." + str(s)
+            cache_name = f"pages.{str(s)}"
             update_caches(cache_name, posts)
             return posts
     results = Provider().get_pages()
@@ -189,7 +182,7 @@ def update_pages_cache(s=None):
             del results[i]
             i -= 1
         i += 1
-    update_caches("pages." + str(s), results)
+    update_caches(f"pages.{str(s)}", results)
     return results
 
 
@@ -204,7 +197,7 @@ def update_configs_cache(s=None):
                     del posts[i]
                     i -= 1
                 i += 1
-            cache_name = "configs." + str(s)
+            cache_name = f"configs.{str(s)}"
             update_caches(cache_name, posts)
             return posts
     results = Provider().get_configs()
@@ -217,7 +210,7 @@ def update_configs_cache(s=None):
             del results[i]
             i -= 1
         i += 1
-    update_caches("configs." + str(s), results)
+    update_caches(f"configs.{str(s)}", results)
     return results
 
 
@@ -258,12 +251,9 @@ def save_setting(name, content):
             i.delete()
     new_set = SettingModel()
     new_set.name = str(name)
-    if content is not None:
-        new_set.content = str(content)
-    else:
-        new_set.content = ""
+    new_set.content = str(content) if content is not None else ""
     new_set.save()
-    print("保存设置{} => {}".format(name, content))
+    print(f"保存设置{name} => {content}")
     return new_set
 
 
@@ -276,26 +266,20 @@ def save_custom(name, content):
             i.delete()
     new_set = CustomModel()
     new_set.name = str(name)
-    if content is not None:
-        new_set.content = str(content)
-    else:
-        new_set.content = ""
+    new_set.content = str(content) if content is not None else ""
     new_set.save()
-    print("保存自定义字段{} => {}".format(name, content))
+    print(f"保存自定义字段{name} => {content}")
     return new_set
 
 
 def get_latest_version():
-    context = dict()
+    context = {}
     try:
         provider = json.loads(get_setting("PROVIDER"))
         if provider["provider"] == "github":
             user = github.Github(provider["params"]["token"])
             latest = user.get_repo("am-abudu/Qexo").get_latest_release()
-            if latest.tag_name and (latest.tag_name != QEXO_VERSION):
-                context["hasNew"] = True
-            else:
-                context["hasNew"] = False
+            context["hasNew"] = bool(latest.tag_name and (latest.tag_name != QEXO_VERSION))
             context["newer"] = latest.tag_name
             context["newer_link"] = latest.html_url
             context["newer_time"] = latest.created_at.astimezone(
@@ -306,7 +290,7 @@ def get_latest_version():
         else:
             context["status"] = False
     except Exception as e:
-        print("获取更新错误: " + repr(e))
+        print(f"获取更新错误: {repr(e)}")
         context["status"] = False
     return context
 
@@ -317,13 +301,21 @@ def check_if_api_auth(request):
     if request.GET.get("token") == get_setting("WEBHOOK_APIKEY"):
         return True
     print(
-        request.path + ": API鉴权失败 访问IP " + (
-            request.META['HTTP_X_FORWARDED_FOR'] if 'HTTP_X_FORWARDED_FOR' in request.META.keys() else request.META['REMOTE_ADDR']))
+        (
+            f"{request.path}: API鉴权失败 访问IP "
+            + (
+                request.META['HTTP_X_FORWARDED_FOR']
+                if 'HTTP_X_FORWARDED_FOR' in request.META.keys()
+                else request.META['REMOTE_ADDR']
+            )
+        )
+    )
+
     return False
 
 
 def check_if_vercel():
-    return True if os.environ.get("VERCEL") else False
+    return bool(os.environ.get("VERCEL"))
 
 
 def get_crc16(x, _hex=False):
@@ -332,7 +324,7 @@ def get_crc16(x, _hex=False):
     b = 0xA001
     for byte in x:
         a ^= ord(byte)
-        for i in range(8):
+        for _ in range(8):
             last = a % 2
             a >>= 1
             if last == 1:
@@ -347,11 +339,8 @@ def get_crc32(x, _hex=False):
 
 
 def get_crc_by_time(_strtime, alg, rep):
-    if rep == "hex":
-        use_hex = True
-    else:
-        use_hex = False
-    if alg != "crc16" and alg != "crc32":
+    use_hex = rep == "hex"
+    if alg not in ["crc16", "crc32"]:
         return ""
     return get_crc16(_strtime.replace(".", "0"), _hex=use_hex) if alg == "crc16" else get_crc32(
         _strtime.replace(".", "0"), _hex=use_hex)
@@ -359,9 +348,9 @@ def get_crc_by_time(_strtime, alg, rep):
 
 def fix_all(all_settings=ALL_SETTINGS):
     counter = 0
-    already = list()
-    deleted = list()
-    additions = list()
+    already = []
+    deleted = []
+    additions = []
     settings = SettingModel.objects.all()
     for query in settings:
         if query.name not in already:
@@ -375,9 +364,9 @@ def fix_all(all_settings=ALL_SETTINGS):
             additions.append(setting[0])
             save_setting(setting[0], setting[1])
             counter += 1
-    print("已修复{}个设置".format(counter))
-    print("删除字段" + str(deleted))
-    print("修正字段" + str(additions))
+    print(f"已修复{counter}个设置")
+    print(f"删除字段{deleted}")
+    print(f"修正字段{additions}")
     return counter
 
 
@@ -387,17 +376,18 @@ def get_project_detail():
 
 
 def checkBuilding(projectId, token):
-    r = 0
-    url = "https://api.vercel.com/v6/deployments/?projectId=" + projectId
-    header = dict()
-    header["Authorization"] = "Bearer " + token
-    header["Content-Type"] = "application/json"
+    url = f"https://api.vercel.com/v6/deployments/?projectId={projectId}"
+    header = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
     response = requests.get(url, headers=header).json()
     result = response["deployments"]
-    for deployment in result:
-        if deployment['state'] == "BUILDING" or deployment['state'] == "INITIALIZING":
-            r += 1
-    return r
+    return sum(
+        deployment['state'] in ["BUILDING", "INITIALIZING"]
+        for deployment in result
+    )
 
 
 def file_get_contents(file):
@@ -407,28 +397,26 @@ def file_get_contents(file):
 
 
 def getEachFiles(base, path=""):
-    file = list()
-    handler = os.listdir(base + "/" + path)
+    file = []
+    handler = os.listdir(f"{base}/{path}")
     for item in handler:
         if item != '.git':
-            fromfile = base + "/" + path + "/" + item
+            fromfile = f"{base}/{path}/{item}"
             if os.path.isdir(fromfile):
-                file += getEachFiles(base, path + "/" + item)
+                file += getEachFiles(base, f"{path}/{item}")
             else:
-                file.append({"file": path + "/" + item,
-                             "data": file_get_contents(fromfile)})
+                file.append({"file": f"{path}/{item}", "data": file_get_contents(fromfile)})
     return file
 
 
 def getIndexFile(base, path=""):
     index = ""
-    handler = os.listdir(base + "/" + path)
+    handler = os.listdir(f"{base}/{path}")
     for item in handler:
         if item != 'manage.py':
-            fromfile = base + "/" + path + "/" + item
+            fromfile = f"{base}/{path}/{item}"
             if os.path.isdir(fromfile):
-                tmp = getIndexFile(base, path + "/" + item)
-                if tmp:
+                if tmp := getIndexFile(base, f"{path}/{item}"):
                     index = tmp
         else:
             index = path
@@ -441,18 +429,17 @@ def VercelUpdate(appId, token, sourcePath=""):
         print("更新失败: 当前有部署正在进行")
         return {"status": False, "msg": "更新失败, 当前有部署正在进行"}
     url = "https://api.vercel.com/v13/deployments"
-    header = dict()
-    data = dict()
-    header["Authorization"] = "Bearer " + token
-    header["Content-Type"] = "application/json"
-    data["name"] = "qexo"
-    data["project"] = appId
-    data["target"] = "production"
+    header = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    data = {"name": "qexo", "project": appId, "target": "production"}
     if sourcePath == "":
         sourcePath = os.path.abspath("")
     data["files"] = getEachFiles(sourcePath)
     response = requests.post(url, data=json.dumps(data), headers=header)
-    print("更新完成: " + response.text)
+    print(f"更新完成: {response.text}")
     return {"status": True, "msg": response.json()}
 
 
@@ -461,9 +448,9 @@ def VercelOnekeyUpdate(auth='am-abudu', project='Qexo', branch='master'):
     vercel_config = get_project_detail()
     tmpPath = '/tmp'
     # 从github下载对应tar.gz，并解压
-    url = 'https://github.com/' + auth + '/' + project + '/tarball/' + quote(branch) + '/'
+    url = f'https://github.com/{auth}/{project}/tarball/{quote(branch)}/'
     # print("download from " + url)
-    _tarfile = tmpPath + '/github.tar.gz'
+    _tarfile = f'{tmpPath}/github.tar.gz'
     with open(_tarfile, "wb") as file:
         file.write(requests.get(url).content)
     print("下载更新完成, 开始解压")
@@ -477,7 +464,7 @@ def VercelOnekeyUpdate(auth='am-abudu', project='Qexo', branch='master'):
     # print("outPath: " + outPath)
     if outPath == '':
         return {"status": False, "msg": '更新失败: 未找到Index目录'}
-    print("找到Index目录: " + outPath)
+    print(f"找到Index目录: {outPath}")
     return VercelUpdate(vercel_config["id"], vercel_config["token"], outPath)
 
 
@@ -500,14 +487,14 @@ def LocalOnekeyUpdate(auth='am-abudu', project='Qexo', branch='master'):
     tmpPath = os.path.abspath("./_tmp")
     if not os.path.exists(tmpPath):
         os.mkdir(tmpPath)
-    _tarfile = tmpPath + '/github.tar.gz'
+    _tarfile = f'{tmpPath}/github.tar.gz'
     try:
-        url = 'https://github.com/' + auth + '/' + project + '/tarball/' + quote(branch) + '/'
+        url = f'https://github.com/{auth}/{project}/tarball/{quote(branch)}/'
         with open(_tarfile, "wb") as file:
             file.write(requests.get(url).content)
     except Exception:
         print("下载更新失败, 尝试使用镜像服务器")
-        url = 'https://hub.fastgit.xyz/' + auth + '/' + project + '/tarball/' + quote(branch) + '/'
+        url = f'https://hub.fastgit.xyz/{auth}/{project}/tarball/{quote(branch)}/'
         with open(_tarfile, "wb") as file:
             file.write(requests.get(url).content)
     print("下载更新完成, 正在解压缩...")
@@ -516,7 +503,7 @@ def LocalOnekeyUpdate(auth='am-abudu', project='Qexo', branch='master'):
     t.close()
     os.remove(_tarfile)
     outPath = os.path.abspath(tmpPath + getIndexFile(tmpPath))
-    print("找到Index目录: " + outPath)
+    print(f"找到Index目录: {outPath}")
     filelist = os.listdir(Path)
     print("开始删除旧文件...")
     for filename in filelist:  # delete all files except tmp
@@ -525,8 +512,6 @@ def LocalOnekeyUpdate(auth='am-abudu', project='Qexo', branch='master'):
                 os.remove(filename)
             elif os.path.isdir(filename):
                 shutil.rmtree(filename)
-            else:
-                pass
     print("删除完成, 正在拷贝文件...")
     copy_all_files(outPath, Path)
     print("删除临时目录")
@@ -550,15 +535,19 @@ def CreateNotification(label, content, now):
 
 def GetNotifications():
     N = NotificationModel.objects.all()
-    result = list()
-    for notification in N:
-        result.append(dict(
+    return [
+        dict(
             label=notification.label,
-            content=notification.content.replace("\n", "<br>").replace("<p>", "<p class=\"text-sm mb-0\">"),
+            content=notification.content.replace("\n", "<br>").replace(
+                "<p>", "<p class=\"text-sm mb-0\">"
+            ),
             timestamp=notification.time,
-            time=strftime("%Y-%m-%d %H:%M:%S", localtime(float(notification.time)))
-        ))
-    return result
+            time=strftime(
+                "%Y-%m-%d %H:%M:%S", localtime(float(notification.time))
+            ),
+        )
+        for notification in N
+    ]
 
 
 def DelNotification(_time):
@@ -577,7 +566,13 @@ def notify_me(title, content):
         text_maker = ht.HTML2Text()
         text_maker.bypass_tables = False
         content = text_maker.handle(content)
-    ntfy = notify(config["notifier"], **config["params"], title="Qexo消息: " + title, content=content)
+    ntfy = notify(
+        config["notifier"],
+        **config["params"],
+        title=f"Qexo消息: {title}",
+        content=content,
+    )
+
     try:
         return ntfy.text
     except Exception:
@@ -622,28 +617,30 @@ def verify_provider(provider):
                 if content.get("theme"):
                     theme = str(content.get("theme"))
                     for file in home["data"]:
-                        if file["name"] == "_config.{}.yml".format(theme) and file["type"] == "file":
-                            config_theme = "_config.{}.yml".format(theme)
+                        if (
+                            file["name"] == f"_config.{theme}.yml"
+                            and file["type"] == "file"
+                        ):
+                            config_theme = f"_config.{theme}.yml"
                             break
                     if (not config_theme) and theme_dir:
-                        theme_path = provider.get_path("themes/" + theme)
+                        theme_path = provider.get_path(f"themes/{theme}")
                         for file in theme_path["data"]:
                             if file["name"] == "_config.yml" and file["type"] == "file":
-                                config_theme = "themes/" + theme + "_config.yml"
+                                config_theme = f"themes/{theme}_config.yml"
                                 break
         except Exception:
             pass
         # 校验 Package.json 及 Hexo
         if pack:
             try:
-                content = json.loads(provider.get_content("package.json"))
-                if content:
-                    if content.get("hexo"):
-                        if content["hexo"].get("version"):
-                            hexo = content["hexo"].get("version")
-                    if content.get("dependencies"):
-                        if content["dependencies"].get("hexo"):
-                            hexo = content["dependencies"].get("hexo")
+                if content := json.loads(provider.get_content("package.json")):
+                    if content.get("hexo") and content["hexo"].get("version"):
+                        hexo = content["hexo"].get("version")
+                    if content.get("dependencies") and content[
+                        "dependencies"
+                    ].get("hexo"):
+                        hexo = content["dependencies"].get("hexo")
             except Exception:
                 pass
         # 总结校验
@@ -693,66 +690,67 @@ def get_post_details(article, safe=True):
 
 def export_settings():
     all_settings = SettingModel.objects.all()
-    settings = list()
-    for setting in all_settings:
-        settings.append({"name": setting.name, "content": setting.content})
-    return settings
+    return [
+        {"name": setting.name, "content": setting.content}
+        for setting in all_settings
+    ]
 
 
 def export_images():
     all_settings = ImageModel.objects.all()
-    settings = list()
-    for setting in all_settings:
-        settings.append({"name": setting.name, "url": setting.url, "size": setting.size, "date": setting.date, "type": setting.type})
-    return settings
+    return [
+        {
+            "name": setting.name,
+            "url": setting.url,
+            "size": setting.size,
+            "date": setting.date,
+            "type": setting.type,
+        }
+        for setting in all_settings
+    ]
 
 
 def export_friends():
     all_ = FriendModel.objects.all()
-    ss = list()
-    for s in all_:
-        ss.append({"name": s.name, "url": s.url, "imageUrl": s.imageUrl, "time": s.time, "description": s.description, "status": s.status})
-    return ss
+    return [
+        {
+            "name": s.name,
+            "url": s.url,
+            "imageUrl": s.imageUrl,
+            "time": s.time,
+            "description": s.description,
+            "status": s.status,
+        }
+        for s in all_
+    ]
 
 
 def export_notifications():
     all_ = NotificationModel.objects.all()
-    ss = list()
-    for s in all_:
-        ss.append({"time": s.time, "label": s.label, "content": s.content})
-    return ss
+    return [{"time": s.time, "label": s.label, "content": s.content} for s in all_]
 
 
 def export_customs():
     all_ = CustomModel.objects.all()
-    ss = list()
-    for s in all_:
-        ss.append({"name": s.name, "content": s.content})
-    return ss
+    return [{"name": s.name, "content": s.content} for s in all_]
 
 
 def export_uv():
     all_ = StatisticUV.objects.all()
-    ss = list()
-    for s in all_:
-        ss.append({"ip": s.ip})
-    return ss
+    return [{"ip": s.ip} for s in all_]
 
 
 def export_pv():
     all_ = StatisticPV.objects.all()
-    ss = list()
-    for s in all_:
-        ss.append({"url": s.url, "number": s.number})
-    return ss
+    return [{"url": s.url, "number": s.number} for s in all_]
 
 
 def export_talks():
     all_ = TalkModel.objects.all()
-    ss = list()
-    for s in all_:
-        ss.append({"content": s.content, "tags": s.tags, "time": s.time, "like": s.like})
-    return ss
+    return [
+        {"content": s.content, "tags": s.tags, "time": s.time, "like": s.like}
+        for s in all_
+    ]
 
 
 def import_settings(ss):
@@ -861,7 +859,7 @@ def excerpt_post(content, length, mark=True):
         if dom.name and dom.name not in ["script", "style"]:
             result += re.sub("{(.*?)}", '', dom.get_text()).replace("\n", " ")
             result += "" if result.endswith(" ") else " "
-    return result[:int(length)] + "..." if len(result) > int(length) else result
+    return f"{result[:int(length)]}..." if len(result) > int(length) else result
 
 
 def edit_talk(_id, content):

@@ -20,7 +20,9 @@ def auth(request):
         if token and site_token:
             if verify:
                 captcha = requests.get(
-                    "https://recaptcha.net/recaptcha/api/siteverify?secret=" + token + "&response=" + verify).json()
+                    f"https://recaptcha.net/recaptcha/api/siteverify?secret={token}&response={verify}"
+                ).json()
+
                 if captcha["score"] <= 0.5:
                     return JsonResponse(safe=False, data={"msg": "人机验证失败！", "status": False})
             else:
@@ -47,36 +49,18 @@ def set_hexo(request):
         msg = ""
         if verify["status"] == -1:
             return JsonResponse(safe=False, data={"msg": "远程连接错误!请检查Token", "status": False})
-        if verify["hexo"]:
-            msg += "检测到Hexo版本: " + verify["hexo"]
-        else:
-            msg += "未检测到Hexo"
+        msg += "检测到Hexo版本: " + verify["hexo"] if verify["hexo"] else "未检测到Hexo"
         if verify["indexhtml"]:
             msg += "\n检测到index.html, 这可能不是正确的仓库"
-        if verify["config_hexo"]:
-            msg += "\n检测到Hexo配置文件"
-        else:
-            msg += "\n未检测到Hexo配置"
-        if verify["theme"]:
-            msg += "\n检测到主题: " + verify["theme"]
-        else:
-            msg += "\n未检测到主题"
+        msg += "\n检测到Hexo配置文件" if verify["config_hexo"] else "\n未检测到Hexo配置"
+        msg += "\n检测到主题: " + verify["theme"] if verify["theme"] else "\n未检测到主题"
         if verify["config_theme"]:
             msg += "\n检测到主题配置" + verify["config_theme"]
         else:
             msg += "\n未检测到主题配置"
-        if verify["theme_dir"]:
-            msg += "\n检测到主题目录"
-        else:
-            msg += "\n未检测到主题目录"
-        if verify["package"]:
-            msg += "\n检测到package.json"
-        else:
-            msg += "\n未检测到package.json"
-        if verify["source"]:
-            msg += "\n检测到source目录 "
-        else:
-            msg += "\n未检测到source目录"
+        msg += "\n检测到主题目录" if verify["theme_dir"] else "\n未检测到主题目录"
+        msg += "\n检测到package.json" if verify["package"] else "\n未检测到package.json"
+        msg += "\n检测到source目录 " if verify["source"] else "\n未检测到source目录"
         msg = msg.replace("\n", "<br>")
         if verify["status"]:
             save_setting("PROVIDER", provider)
@@ -126,13 +110,17 @@ def test_onepush(request):
 @login_required(login_url="/login/")
 def set_api(request):
     try:
-        apikey = request.POST.get("apikey")
-        if apikey:
+        if apikey := request.POST.get("apikey"):
             save_setting("WEBHOOK_APIKEY", apikey)
-        else:
-            if not SettingModel.objects.filter(name="WEBHOOK_APIKEY").count():
-                save_setting("WEBHOOK_APIKEY", ''.join(
-                    random.choice("qwertyuiopasdfghjklzxcvbnm1234567890") for x in range(12)))
+        elif not SettingModel.objects.filter(name="WEBHOOK_APIKEY").count():
+            save_setting(
+                "WEBHOOK_APIKEY",
+                ''.join(
+                    random.choice("qwertyuiopasdfghjklzxcvbnm1234567890")
+                    for _ in range(12)
+                ),
+            )
+
         save_setting("ALLOW_FRIEND", request.POST.get("allow_friend"))
         save_setting("FRIEND_RECAPTCHA", request.POST.get("friend-recaptcha"))
         save_setting("RECAPTCHA_TOKEN", request.POST.get("recaptcha-token"))
@@ -339,7 +327,7 @@ def new_value(request):
 def auto_fix(request):
     try:
         counter = fix_all()
-        msg = "尝试自动修复了 {} 个字段，请在稍后检查和修改配置".format(counter)
+        msg = f"尝试自动修复了 {counter} 个字段，请在稍后检查和修改配置"
         context = {"msg": msg, "status": True}
     except Exception as e:
         print(repr(e))
@@ -399,19 +387,24 @@ def save_post(request):
             # 删除草稿
             try:
                 commitchange = f"Delete Post Draft {file_name}"
-                Provider().delete("source/_drafts/" + file_name, commitchange)
+                Provider().delete(f"source/_drafts/{file_name}", commitchange)
             except Exception:
                 pass
             # 创建/更新文章
             commitchange = f"Update Post {file_name}"
             if get_setting("EXCERPT_POST") == "是":
                 excerpt = excerpt_post(content, get_setting("EXCERPT_LENGTH"))
-                print(f"截取文章{file_name}摘要: " + excerpt)
+                print(f"截取文章{file_name}摘要: {excerpt}")
                 front_matter["excerpt"] = excerpt
             front_matter = "---\n{}---".format(yaml.dump(front_matter, allow_unicode=True))
             if not content.startswith("\n"):
                 front_matter += "\n"
-            Provider().save("source/_posts/" + file_name, front_matter + content, commitchange)
+            Provider().save(
+                f"source/_posts/{file_name}",
+                front_matter + content,
+                commitchange,
+            )
+
             context = {"msg": "OK!", "status": True}
             if excerpt:
                 context["excerpt"] = excerpt
@@ -434,7 +427,7 @@ def save_page(request):
         try:
             if get_setting("EXCERPT_POST") == "是":
                 excerpt = excerpt_post(content, get_setting("EXCERPT_LENGTH"))
-                print(f"截取页面{file_path}摘要: " + excerpt)
+                print(f"截取页面{file_path}摘要: {excerpt}")
                 front_matter["excerpt"] = excerpt
             front_matter = "---\n{}---".format(yaml.dump(front_matter, allow_unicode=True))
             if not content.startswith("\n"):
@@ -463,12 +456,17 @@ def save_draft(request):
             # 创建/更新草稿
             if get_setting("EXCERPT_POST") == "是":
                 excerpt = excerpt_post(content, get_setting("EXCERPT_LENGTH"))
-                print(f"截取文章{file_name}摘要: " + excerpt)
+                print(f"截取文章{file_name}摘要: {excerpt}")
                 front_matter["excerpt"] = excerpt
             front_matter = "---\n{}---\n".format(yaml.dump(front_matter, allow_unicode=True))
             if not content.startswith("\n"):
                 front_matter += "\n"
-            Provider().save("source/_drafts/" + file_name, front_matter + content, commitchange)
+            Provider().save(
+                f"source/_drafts/{file_name}",
+                front_matter + content,
+                commitchange,
+            )
+
             context = {"msg": "OK!", "status": True}
             if excerpt:
                 context["excerpt"] = excerpt
@@ -533,20 +531,20 @@ def create_webhook_config(request):
     context = dict(msg="Error!", status=False)
     if request.method == "POST":
         try:
-            if SettingModel.objects.filter(name="WEBHOOK_APIKEY"):
-                config = {
-                    "content_type": "json",
-                    "url": request.POST.get("uri") + "?token=" + SettingModel.objects.get(
-                        name="WEBHOOK_APIKEY").content
-                }
-            else:
-                save_setting("WEBHOOK_APIKEY", ''.join(
-                    random.choice("qwertyuiopasdfghjklzxcvbnm1234567890") for x in range(12)))
-                config = {
-                    "content_type": "json",
-                    "url": request.POST.get("uri") + "?token=" + SettingModel.objects.get(
-                        name="WEBHOOK_APIKEY").content
-                }
+            if not SettingModel.objects.filter(name="WEBHOOK_APIKEY"):
+                save_setting(
+                    "WEBHOOK_APIKEY",
+                    ''.join(
+                        random.choice("qwertyuiopasdfghjklzxcvbnm1234567890")
+                        for _ in range(12)
+                    ),
+                )
+
+            config = {
+                "content_type": "json",
+                "url": request.POST.get("uri") + "?token=" + SettingModel.objects.get(
+                    name="WEBHOOK_APIKEY").content
+            }
             Provider().delete_hooks()
             Provider().create_hook(config)
             context = {"msg": "设置成功！", "status": True}
@@ -644,7 +642,11 @@ def clean_friend(request):
             if not friend.status:
                 friend.delete()
                 counter += 1
-        context = {"msg": "成功清理了{}条友链".format(counter) if counter else "无隐藏的友链", "status": True}
+        context = {
+            "msg": f"成功清理了{counter}条友链" if counter else "无隐藏的友链",
+            "status": True,
+        }
+
     except Exception as error:
         print(repr(error))
         context = {"msg": repr(error), "status": False}
@@ -677,12 +679,11 @@ def get_notifications(request):
                     "newer_text"] + "<p>可前往 <object><a href=\"/settings.html\">设置</a></object> 在线更新</p>",
                                    time())
                 update_caches("update", latest["newer_time"], "text")
-        else:
-            if latest["hasNew"]:
-                CreateNotification("程序更新", "检测到更新: " + latest["newer"] + "<br>" + latest[
-                    "newer_text"] + "<p>可前往 <object><a href=\"/settings.html\">设置</a></object> 在线更新</p>",
-                                   time())
-                update_caches("update", latest["newer_time"], "text")
+        elif latest["hasNew"]:
+            CreateNotification("程序更新", "检测到更新: " + latest["newer"] + "<br>" + latest[
+                "newer_text"] + "<p>可前往 <object><a href=\"/settings.html\">设置</a></object> 在线更新</p>",
+                               time())
+            update_caches("update", latest["newer_time"], "text")
         context = {"data": GetNotifications(), "status": True}
     except Exception as error:
         print(repr(error))

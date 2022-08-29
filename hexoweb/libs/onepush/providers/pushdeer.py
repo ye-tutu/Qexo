@@ -18,9 +18,7 @@ class PushDeer(Provider):
     }
 
     def _prepare_url(self, url: str = None, **kwargs):
-        self.url = self.base_url
-        if url:
-            self.url = url
+        self.url = url or self.base_url
         return self.url
 
     def _prepare_data(self,

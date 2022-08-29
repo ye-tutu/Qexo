@@ -46,20 +46,28 @@ class DogeCloudOss(Provider):
         signed_data = hmac.new(secret_key.encode(
             'utf-8'), sign_str.encode('utf-8'), sha1)
         sign = signed_data.digest().hex()
-        authorization = 'TOKEN ' + access_key + ':' + sign
-        response = requests.post('https://api.dogecloud.com' + api_path, data=body, headers={
-            'Authorization': authorization,
-            'Content-Type': mime
-        })
+        authorization = f'TOKEN {access_key}:{sign}'
+        response = requests.post(
+            f'https://api.dogecloud.com{api_path}',
+            data=body,
+            headers={'Authorization': authorization, 'Content-Type': mime},
+        )
+
         return response.json()
 
     def upload(self, file):
         now = date.today()
         photo_stream = file.read()
         file_md5 = md5(photo_stream).hexdigest()
-        path = self.path.replace("{year}", str(now.year)).replace("{month}", str(now.month)).replace("{day}", str(now.day)).replace(
-            "{filename}", file.name[0:-len(file.name.split(".")[-1]) - 1]).replace("{extName}", file.name.split(".")[-1]).replace("{md5}",
-                                                                                                                                  file_md5)
+        path = (
+            self.path.replace("{year}", str(now.year))
+            .replace("{month}", str(now.month))
+            .replace("{day}", str(now.day))
+            .replace("{filename}", file.name[: -len(file.name.split(".")[-1]) - 1])
+            .replace("{extName}", file.name.split(".")[-1])
+            .replace("{md5}", file_md5)
+        )
+
         res = self.dogecloud_api()
         if res['code'] != 200:
             raise Exception("Api failed: " + res['msg'])
@@ -76,6 +84,11 @@ class DogeCloudOss(Provider):
         bucket.put_object(Key=path, Body=photo_stream,
                           ContentType=file.content_type)
 
-        return self.prev_url.replace("{year}", str(now.year)).replace("{month}", str(now.month)).replace("{day}", str(now.day)).replace(
-            "{filename}", file.name[0:-len(file.name.split(".")[-1]) - 1]).replace("{extName}", file.name.split(".")[-1]).replace(
-            "{md5}", file_md5)
+        return (
+            self.prev_url.replace("{year}", str(now.year))
+            .replace("{month}", str(now.month))
+            .replace("{day}", str(now.day))
+            .replace("{filename}", file.name[: -len(file.name.split(".")[-1]) - 1])
+            .replace("{extName}", file.name.split(".")[-1])
+            .replace("{md5}", file_md5)
+        )

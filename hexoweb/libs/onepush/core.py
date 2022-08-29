@@ -42,7 +42,7 @@ class Provider(object):
             else:
                 response = self.request('post', self.url, data=self.data)
         else:
-            raise OnePushException('Request method {} not supported.'.format(self.method))
+            raise OnePushException(f'Request method {self.method} not supported.')
 
         return response
 
@@ -54,7 +54,7 @@ class Provider(object):
     def process_message(title, content):
         message = content
         if title and content:
-            message = '{}\n\n{}'.format(title, content)
+            message = f'{title}\n\n{content}'
         if title and not content:
             message = title
         return message
@@ -65,11 +65,11 @@ class Provider(object):
         response = None
         try:
             response = session.request(method, url, **kwargs)
-            log.debug('Response: {}'.format(response.text))
+            log.debug(f'Response: {response.text}')
         except SSLError as e:
             log.error(e)
             response = session.request(method, url, verify=False, **kwargs)
-            log.debug('Response: {}'.format(response.text))
+            log.debug(f'Response: {response.text}')
         except Exception as e:
             log.error(e)
         finally:
